@@ -1,29 +1,29 @@
 /* ========== ROOT TOKENS ========== */
 :root {
-  --bg-base: #07111f;
-  --bg-surface: #0e1b2d;
-  --bg-card: rgba(15, 23, 42, 0.78);
-  --bg-card-hover: rgba(22, 33, 54, 0.94);
-  --border: rgba(148, 163, 184, 0.16);
-  --border-strong: rgba(148, 163, 184, 0.28);
-  --gold: #e58c3a;
-  --gold-light: #f6b974;
-  --blue: #38bdf8;
-  --green: #14b8a6;
-  --red: #fb7185;
-  --purple: #3b82f6;
-  --orange: #f97316;
-  --text-primary: #f8fafc;
-  --text-secondary: #cbd5e1;
-  --text-muted: #94a3b8;
-  --accent: #14b8a6;
-  --accent-2: #f59e0b;
+  --bg-base: #f5f7fb;
+  --bg-surface: #ffffff;
+  --bg-card: rgba(255, 255, 255, 0.92);
+  --bg-card-hover: rgba(244, 247, 252, 0.98);
+  --border: rgba(15, 23, 42, 0.12);
+  --border-strong: rgba(15, 23, 42, 0.22);
+  --gold: #c9822f;
+  --gold-light: #f2c27d;
+  --blue: #1d4ed8;
+  --green: #0f766e;
+  --red: #e11d48;
+  --purple: #2563eb;
+  --orange: #d97706;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --accent: #2563eb;
+  --accent-2: #0ea5a3;
   --sidebar-w: 240px;
   --topbar-h: 64px;
   --radius: 12px;
   --radius-lg: 18px;
-  --shadow: 0 18px 40px rgba(0, 0, 0, 0.42);
-  --shadow-soft: 0 8px 22px rgba(0, 0, 0, 0.28);
+  --shadow: 0 18px 44px rgba(15, 23, 42, 0.16);
+  --shadow-soft: 0 10px 24px rgba(15, 23, 42, 0.12);
   --transition: 0.2s ease;
 }
 
@@ -42,9 +42,9 @@ html {
 
 body {
   font-family: 'Manrope', sans-serif;
-  background: radial-gradient(900px 600px at 10% 10%, rgba(20, 184, 166, 0.18), transparent 60%),
-    radial-gradient(800px 520px at 90% 0%, rgba(245, 158, 11, 0.13), transparent 60%),
-    linear-gradient(180deg, #06101d 0%, #0b1728 54%, #111827 100%);
+  background: radial-gradient(900px 600px at 12% 8%, rgba(37, 99, 235, 0.12), transparent 60%),
+    radial-gradient(780px 520px at 90% 0%, rgba(14, 165, 163, 0.12), transparent 60%),
+    linear-gradient(180deg, #f7f8fc 0%, #eef2f7 55%, #f8fafc 100%);
   color: var(--text-primary);
   display: flex;
   min-height: 100vh;
@@ -55,8 +55,8 @@ body::before {
   content: '';
   position: fixed;
   inset: 0;
-  background: repeating-linear-gradient(45deg, rgba(148, 163, 184, 0.05) 0, rgba(148, 163, 184, 0.05) 1px, transparent 1px, transparent 14px);
-  opacity: 0.45;
+  background: repeating-linear-gradient(45deg, rgba(15, 23, 42, 0.04) 0, rgba(15, 23, 42, 0.04) 1px, transparent 1px, transparent 16px);
+  opacity: 0.4;
   pointer-events: none;
   z-index: -1;
 }
@@ -78,7 +78,7 @@ select,
 textarea {
   font-family: inherit;
   font-size: 0.9rem;
-  background: rgba(15, 23, 42, 0.85);
+  background: #ffffff;
   border: 1px solid var(--border);
   color: var(--text-primary);
   border-radius: 8px;
@@ -92,11 +92,11 @@ input:focus,
 select:focus,
 textarea:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.18);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
 }
 
 select option {
-  background: #0f172a;
+  background: #ffffff;
 }
 
 label {
@@ -120,7 +120,7 @@ h4 {
 .sidebar {
   width: var(--sidebar-w);
   min-height: 100vh;
-  background: rgba(7, 17, 31, 0.88);
+  background: rgba(255, 255, 255, 0.82);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   border-right: 1px solid var(--border);
@@ -154,14 +154,14 @@ h4 {
   height: 42px;
   border-radius: 12px;
   display: block;
-  box-shadow: 0 10px 24px rgba(20, 184, 166, 0.2);
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.18);
 }
 
 .brand-name {
   display: block;
   font-size: 1rem;
   font-weight: 800;
-  color: var(--accent-2);
+  color: var(--accent);
   letter-spacing: 0;
 }
 
@@ -211,7 +211,7 @@ h4 {
 }
 
 .nav-link.active {
-  background: rgba(15, 118, 110, 0.12);
+  background: rgba(37, 99, 235, 0.1);
   color: var(--accent);
 }
 
@@ -248,13 +248,13 @@ h4 {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-2), #f6b974);
+  background: linear-gradient(135deg, var(--accent), #7dd3fc);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
   font-size: 0.9rem;
-  color: #08111f;
+  color: #ffffff;
   flex-shrink: 0;
 }
 
@@ -287,7 +287,7 @@ h4 {
 /* ========== TOPBAR ========== */
 .topbar {
   height: var(--topbar-h);
-  background: rgba(7, 17, 31, 0.78);
+  background: rgba(255, 255, 255, 0.86);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
@@ -339,8 +339,8 @@ h4 {
   padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: rgba(15, 23, 42, 0.82);
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+  background: #ffffff;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
 }
 
 .topbar-search-icon {
@@ -368,7 +368,7 @@ h4 {
   padding: 2px 6px;
   font-size: 0.68rem;
   color: var(--text-muted);
-  background: #111827;
+  background: #f1f5f9;
 }
 
 .topbar-time {
@@ -399,14 +399,14 @@ h4 {
 }
 
 .btn-primary {
-  background: linear-gradient(120deg, var(--accent), #0ea5a3);
+  background: linear-gradient(120deg, var(--accent), #38bdf8);
   color: #fff;
-  box-shadow: 0 6px 16px rgba(15, 118, 110, 0.25);
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.24);
 }
 
 .btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 10px 22px rgba(15, 118, 110, 0.28);
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.24);
 }
 
 .btn-secondary {
@@ -501,13 +501,20 @@ h4 {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, rgba(7, 17, 31, 0.96), rgba(7, 17, 31, 0.76), rgba(7, 17, 31, 0.18));
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.2));
 }
 
 .hero-content {
   position: relative;
   z-index: 1;
   max-width: 640px;
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px 20px;
+  box-shadow: var(--shadow-soft);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
 }
 
 .hero-eyebrow {
@@ -544,7 +551,7 @@ h4 {
 }
 
 .hero-chip {
-  background: rgba(15, 23, 42, 0.78);
+  background: rgba(248, 250, 252, 0.95);
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 6px 12px;
@@ -711,7 +718,7 @@ table {
 
 thead th {
   padding: 12px 16px;
-  background: rgba(15, 23, 42, 0.8);
+  background: rgba(241, 245, 249, 0.9);
   color: var(--text-secondary);
   font-size: 0.75rem;
   font-weight: 600;
@@ -734,7 +741,7 @@ tbody tr:last-child td {
 }
 
 tbody tr:hover td {
-  background: rgba(20, 184, 166, 0.06);
+  background: rgba(37, 99, 235, 0.06);
 }
 
 /* ========== BADGES ========== */
@@ -821,7 +828,7 @@ tbody tr:hover td {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(2, 6, 23, 0.68);
+  background: rgba(15, 23, 42, 0.45);
   -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
   display: none;
@@ -836,7 +843,7 @@ tbody tr:hover td {
 }
 
 .modal {
-  background: rgba(15, 23, 42, 0.96);
+  background: rgba(255, 255, 255, 0.98);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-lg);
   width: 90%;
@@ -941,7 +948,7 @@ tbody tr:hover td {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: rgba(15, 23, 42, 0.96);
+  background: rgba(255, 255, 255, 0.96);
   border: 1px solid var(--border-strong);
   border-radius: 10px;
   padding: 12px 18px;
@@ -1056,7 +1063,7 @@ tbody tr:hover td {
 .room-price {
   font-size: 0.9rem;
   font-weight: 600;
-  color: var(--gold);
+  color: var(--orange);
   margin-bottom: 10px;
 }
 
@@ -1147,7 +1154,7 @@ tbody tr:hover td {
 .menu-item-price {
   font-size: 1.1rem;
   font-weight: 800;
-  color: var(--gold);
+  color: var(--orange);
 }
 
 .menu-card-actions {
@@ -1203,7 +1210,7 @@ tbody tr:hover td {
   font-size: 1rem;
   font-weight: 700;
   padding-top: 12px;
-  color: var(--gold);
+  color: var(--orange);
 }
 
 /* ========== TABLE STATUS ========== */
@@ -1331,7 +1338,7 @@ tbody tr:hover td {
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
-  background: rgba(7, 17, 31, 0.72);
+  background: rgba(255, 255, 255, 0.9);
   border: 1px solid var(--border);
   border-radius: 10px;
 }
@@ -1355,8 +1362,8 @@ tbody tr:hover td {
 }
 
 .command-metrics div {
-  background: rgba(20, 184, 166, 0.1);
-  border: 1px solid rgba(20, 184, 166, 0.2);
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.18);
   border-radius: 8px;
   padding: 12px;
 }
@@ -1385,7 +1392,7 @@ tbody tr:hover td {
 .command-result {
   text-align: left;
   border: 1px solid var(--border);
-  background: rgba(15, 23, 42, 0.82);
+  background: rgba(255, 255, 255, 0.94);
   border-radius: 8px;
   padding: 12px;
   transition: transform var(--transition), border var(--transition), box-shadow var(--transition);
@@ -1445,7 +1452,7 @@ tbody tr:hover td {
 }
 
 .ops-panel {
-  background: rgba(15, 23, 42, 0.82);
+  background: rgba(255, 255, 255, 0.92);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 18px;
@@ -1500,7 +1507,7 @@ tbody tr:hover td {
 }
 
 .revenue-mix {
-  background: rgba(7, 17, 31, 0.72);
+  background: rgba(248, 250, 252, 0.96);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 14px;
@@ -1557,7 +1564,7 @@ tbody tr:hover td {
   align-items: flex-start;
   gap: 10px;
   padding: 12px;
-  background: rgba(7, 17, 31, 0.54);
+  background: rgba(248, 250, 252, 0.94);
   border: 1px solid var(--border);
   border-radius: 8px;
 }
@@ -1596,7 +1603,7 @@ tbody tr:hover td {
   gap: 12px;
   width: 100%;
   text-align: left;
-  background: rgba(7, 17, 31, 0.62);
+  background: rgba(248, 250, 252, 0.96);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 12px;
@@ -1606,7 +1613,7 @@ tbody tr:hover td {
   width: 38px;
   height: 38px;
   border-radius: 8px;
-  background: rgba(15, 118, 110, 0.1);
+  background: rgba(37, 99, 235, 0.12);
   color: var(--accent);
   display: grid;
   place-items: center;
@@ -1614,12 +1621,12 @@ tbody tr:hover td {
 }
 
 .queue-item.warn > span {
-  background: rgba(229, 140, 58, 0.14);
-  color: var(--accent-2);
+  background: rgba(217, 119, 6, 0.14);
+  color: var(--orange);
 }
 
 .queue-item.high > span {
-  background: rgba(220, 38, 38, 0.12);
+  background: rgba(225, 29, 72, 0.12);
   color: var(--red);
 }
 
@@ -1764,7 +1771,7 @@ tbody tr:hover td {
 .home-hero {
   display: flex;
   gap: 40px;
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(7, 17, 31, 0.78));
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(241, 245, 249, 0.95));
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-soft);
   padding: 40px 36px;
@@ -1789,7 +1796,7 @@ tbody tr:hover td {
   width: 54px;
   height: 54px;
   border-radius: 12px;
-  box-shadow: 0 10px 24px rgba(20, 184, 166, 0.22);
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.18);
 }
 .home-brand-text {
   display: flex;
@@ -1799,7 +1806,7 @@ tbody tr:hover td {
 .home-title {
   font-size: 1.5rem;
   font-weight: 800;
-  color: var(--accent-2);
+  color: var(--accent);
   letter-spacing: 0;
 }
 .home-tagline {
@@ -1838,7 +1845,7 @@ tbody tr:hover td {
   flex-wrap: wrap;
 }
 .home-pill {
-  background: rgba(15, 23, 42, 0.74);
+  background: rgba(248, 250, 252, 0.9);
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 6px 16px;
@@ -1855,7 +1862,7 @@ tbody tr:hover td {
   align-items: flex-end;
 }
 .home-glass-card {
-  background: rgba(15, 23, 42, 0.92);
+  background: rgba(255, 255, 255, 0.96);
   border-radius: var(--radius);
   box-shadow: var(--shadow-soft);
   padding: 22px 28px;
@@ -1896,7 +1903,7 @@ tbody tr:hover td {
   flex-wrap: wrap;
 }
 .home-mini-card {
-  background: rgba(7, 17, 31, 0.72);
+  background: rgba(248, 250, 252, 0.96);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 10px 18px;
@@ -1913,7 +1920,7 @@ tbody tr:hover td {
   color: var(--accent-2);
 }
 .home-command-card {
-  background: rgba(15, 23, 42, 0.92);
+  background: rgba(255, 255, 255, 0.96);
   border-radius: var(--radius);
   box-shadow: var(--shadow-soft);
   padding: 18px;
@@ -1947,7 +1954,7 @@ tbody tr:hover td {
   margin-bottom: 24px;
 }
 .home-ops-strip div {
-  background: rgba(15, 23, 42, 0.82);
+  background: rgba(255, 255, 255, 0.94);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 16px;
