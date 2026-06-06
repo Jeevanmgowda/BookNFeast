@@ -1,4 +1,5 @@
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const { pool } = require('./db');
@@ -120,6 +121,11 @@ const DEFINITIONS = {
 
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
+
+// Serve frontend and assets as static files
+const projectRoot = path.join(__dirname, '..');
+app.use(express.static(path.join(projectRoot, 'frontend')));
+app.use('/assets', express.static(path.join(projectRoot, 'assets')));
 
 function toSqlDatetime(value) {
   const d = value instanceof Date ? value : new Date(value);
@@ -592,8 +598,16 @@ app.delete('/api/:collection/:id', async (req, res) => {
 
 async function startServer() {
   await ensureAdminUser();
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`BookNFeast API running on http://localhost:${PORT}`);
+  });
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`\n❌ Port ${PORT} is already in use. Kill the other process or use a different port:\n   PORT=3001 npm run dev\n`);
+    } else {
+      console.error('Server error:', err);
+    }
+    process.exit(1);
   });
 }
 
