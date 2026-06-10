@@ -611,7 +611,24 @@ async function startServer() {
   });
 }
 
-startServer().catch(err => {
+function printStartupError(err) {
+  if (err.code === 'ER_ACCESS_DENIED_ERROR') {
+    console.error('\nDatabase login failed.');
+    console.error(`MySQL rejected DB_USER="${process.env.DB_USER || 'root'}" on ${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 3306}.`);
+    console.error('Update backend/.env with a real MySQL user/password that can access DB_NAME, then restart nodemon.');
+    console.error('Note: the default app login is admin/admin; that is not automatically a MySQL account.\n');
+    return;
+  }
+
+  if (err.code === 'ER_BAD_DB_ERROR') {
+    console.error(`\nDatabase "${process.env.DB_NAME || 'booknfeast'}" does not exist. Run "npm run db:init" from backend, then restart the server.\n`);
+    return;
+  }
+
   console.error('Server failed to start', err);
+}
+
+startServer().catch(err => {
+  printStartupError(err);
   process.exit(1);
 });
