@@ -15,7 +15,7 @@ BookNFeast is a hotel and restaurant management system with a Node/Express + MyS
 
 ## Project Structure
 - backend/ - API server, DB setup, and seed logic
-- database/ - MySQL schema
+- database/ - MySQL schema, triggers, and sample DML query commands
 - frontend/ - SPA UI and pages
 - assets/ - shared images and icons
 
@@ -37,7 +37,7 @@ npm install
 
 ```bash
 DB_HOST=localhost
-DB_PORT=3306
+DB_PORT=3307
 DB_USER=root
 DB_PASSWORD=your_password
 ```
@@ -47,6 +47,8 @@ DB_PASSWORD=your_password
 ```bash
 npm run db:init
 ```
+
+Sample JOIN and aggregate DML commands are available in `database/dml_commands.sql`.
 
 4) Start the API server
 
