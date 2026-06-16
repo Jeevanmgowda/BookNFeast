@@ -32,7 +32,7 @@ let currentPage = 'home';
 
 // ---- Admin Auth ----
 const DEFAULT_ADMIN = { username: 'admin', password: 'admin' };
-const AUTH_API_BASE = 'http://localhost:3000/api/auth';
+const AUTH_API_BASE = `${window.BNF_API_BASE || '/api'}/auth`;
 let isAdminAuthed = false;
 
 async function authRequest(path, options = {}) {

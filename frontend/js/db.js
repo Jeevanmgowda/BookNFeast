@@ -2,7 +2,7 @@
  * db.js — API-backed CRUD cache with localStorage fallback
  */
 const DB = (() => {
-  const API_BASE = 'http://localhost:3000/api';
+  const API_BASE = window.BNF_API_BASE || '/api';
   const COLLECTIONS = ['rooms', 'guests', 'bookings', 'menuItems', 'tables', 'orders', 'staff', 'activity'];
   const cache = {};
   let isUsingFallback = false;

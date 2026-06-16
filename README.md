@@ -74,3 +74,44 @@ Open frontend/index.html in your browser. For a better dev experience, use a loc
 
 ## Notes
 - The UI will fallback to localStorage seed data if the backend is offline.
+
+## Deployment
+
+This app needs a Node web service plus a hosted MySQL database. Do not use
+`localhost` for MySQL in production; create a cloud MySQL database first, then
+add its connection values as environment variables.
+
+### Render
+
+1) Push this repository to GitHub.
+
+2) In Render, create a new Blueprint from the repository. The included
+`render.yaml` sets:
+
+```bash
+Build Command: npm run build
+Start Command: npm start
+Health Check Path: /api/health
+```
+
+3) Add these environment variables in Render:
+
+```bash
+DB_HOST=your-mysql-host
+DB_PORT=3306
+DB_USER=your-mysql-user
+DB_PASSWORD=your-mysql-password
+DB_NAME=booknfeast
+```
+
+4) Initialize the production database once by running the SQL in
+`database/schema.sql` against the hosted MySQL database.
+
+5) Deploy the service and open `/api/health`. A healthy deployment returns:
+
+```json
+{ "ok": true }
+```
+
+The frontend is served by the same Express app, so API calls use `/api` in
+production and do not need a separate frontend deployment.

@@ -1,0 +1,15 @@
+{
+  "name": "booknfeast",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Hotel and restaurant management system with an Express API and static frontend.",
+  "scripts": {
+    "install:backend": "npm --prefix backend install",
+    "build": "npm run install:backend",
+    "start": "npm --prefix backend start",
+    "db:init": "npm --prefix backend run db:init"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
