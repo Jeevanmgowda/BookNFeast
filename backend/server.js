@@ -265,22 +265,56 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+app.post('/api/auth/signup', async (req, res) => {
+  const { username, password } = req.body || {};
+  if (!username || !password) {
+    return res.status(400).json({ error: 'missing_credentials' });
+  }
+  const cleanUsername = String(username).trim();
+  if (cleanUsername.length < 3) {
+    return res.status(400).json({ error: 'username_too_short' });
+  }
+  try {
+    const db = await getDb();
+    const existing = await db.collection('admin_users').findOne({ username: cleanUsername });
+    if (existing) {
+      return res.status(400).json({ error: 'username_taken' });
+    }
+    const hash = await bcrypt.hash(password, 10);
+    await db.collection('admin_users').insertOne({
+      username: cleanUsername,
+      password_hash: hash,
+      created_at: new Date().toISOString(),
+      updated_at: null
+    });
+    res.status(201).json({ ok: true, username: cleanUsername });
+  } catch (err) {
+    console.error('Signup failed', err);
+    res.status(500).json({ error: 'signup_failed' });
+  }
+});
+
 app.post('/api/auth/reset', async (req, res) => {
-  const { currentPassword, newUsername, newPassword } = req.body || {};
-  if (!currentPassword || !newUsername || !newPassword) {
+  const { username, currentPassword, newUsername, newPassword } = req.body || {};
+  if (!username || !currentPassword || !newUsername || !newPassword) {
     return res.status(400).json({ error: 'missing_fields' });
   }
   try {
     const db = await getDb();
-    const admin = await db.collection('admin_users').findOne({});
-    if (!admin) return res.status(404).json({ error: 'admin_missing' });
+    const user = await db.collection('admin_users').findOne({ username });
+    if (!user) return res.status(404).json({ error: 'user_missing' });
 
-    const ok = await bcrypt.compare(currentPassword, admin.password_hash);
+    const ok = await bcrypt.compare(currentPassword, user.password_hash);
     if (!ok) return res.status(401).json({ error: 'invalid_credentials' });
+
+    if (newUsername !== username) {
+      const existing = await db.collection('admin_users').findOne({ username: newUsername });
+      if (existing) return res.status(400).json({ error: 'username_taken' });
+    }
 
     const hash = await bcrypt.hash(newPassword, 10);
     await db.collection('admin_users').updateOne(
-      { _id: admin._id },
+      { _id: user._id },
       { $set: { username: newUsername, password_hash: hash, updated_at: new Date().toISOString() } }
     );
 

@@ -69,6 +69,13 @@ function updateAuthUI() {
   const actionBtn = document.getElementById('topbar-action');
   const commandBtn = document.getElementById('command-btn');
   const globalSearch = document.getElementById('global-search');
+  
+  // Sidebar user fields
+  const userAvatar = document.querySelector('.sidebar-footer .user-avatar');
+  const userNameEl = document.querySelector('.sidebar-footer .user-name');
+  const userRoleEl = document.querySelector('.sidebar-footer .user-role');
+  const sidebarUser = document.querySelector('.sidebar-footer .sidebar-user');
+
   if (!actionBtn) return;
   if (isAdminAuthed) {
     actionBtn.style.display = 'inline-flex';
@@ -76,23 +83,45 @@ function updateAuthUI() {
     actionBtn.className = 'btn btn-secondary btn-sm';
     actionBtn.onclick = () => {
       setAuthState(false);
+      localStorage.removeItem('bnf_username');
       toast('Signed out', 'info');
-      showAdminLogin();
+      showAuthModal();
     };
+
+    // Update sidebar footer
+    const currentUsername = localStorage.getItem('bnf_username') || 'admin';
+    if (userNameEl) userNameEl.textContent = currentUsername;
+    if (userAvatar) userAvatar.textContent = currentUsername.charAt(0).toUpperCase();
+    if (userRoleEl) userRoleEl.textContent = currentUsername === 'admin' ? 'Super Admin' : 'Manager';
+    if (sidebarUser) {
+      sidebarUser.style.cursor = 'pointer';
+      sidebarUser.title = 'Click to reset credentials';
+      sidebarUser.onclick = () => showResetCredentials();
+    }
   } else {
     actionBtn.style.display = 'inline-flex';
-    actionBtn.textContent = 'Admin Sign In';
+    actionBtn.textContent = 'Sign In';
     actionBtn.className = 'btn btn-primary btn-sm';
-    actionBtn.onclick = () => showAdminLogin();
+    actionBtn.onclick = () => showAuthModal();
+
+    // Reset sidebar footer
+    if (userNameEl) userNameEl.textContent = 'Guest';
+    if (userAvatar) userAvatar.textContent = '?';
+    if (userRoleEl) userRoleEl.textContent = 'Please sign in';
+    if (sidebarUser) {
+      sidebarUser.style.cursor = 'default';
+      sidebarUser.title = '';
+      sidebarUser.onclick = null;
+    }
   }
   if (commandBtn) commandBtn.disabled = !isAdminAuthed;
   if (globalSearch) globalSearch.disabled = !isAdminAuthed;
 }
 
 async function showResetCredentials() {
-  const info = await getAdminInfo().catch(() => ({ username: DEFAULT_ADMIN.username }));
+  const currentUsername = localStorage.getItem('bnf_username') || DEFAULT_ADMIN.username;
   Modal.open({
-    title: 'Reset Admin Credentials',
+    title: 'Reset Credentials',
     body: `
       <div class="form-group">
         <label>Current Password</label>
@@ -100,7 +129,7 @@ async function showResetCredentials() {
       </div>
       <div class="form-group">
         <label>New Username</label>
-        <input id="admin-new-user" value="${info.username || ''}" placeholder="admin">
+        <input id="admin-new-user" value="${currentUsername}" placeholder="username">
       </div>
       <div class="form-group">
         <label>New Password</label>
@@ -108,7 +137,7 @@ async function showResetCredentials() {
       </div>
     `,
     footer: `
-      <button class="btn btn-secondary" onclick="showAdminLogin()">Back</button>
+      <button class="btn btn-secondary" onclick="Modal.close()">Cancel</button>
       <button class="btn btn-primary" id="admin-reset-btn">Save</button>
     `
   });
@@ -121,75 +150,189 @@ async function showResetCredentials() {
       const newUser = document.getElementById('admin-new-user').value.trim();
       const newPass = document.getElementById('admin-new-pass').value.trim();
       if (!newUser || !newPass) return toast('Username and password required', 'error');
+      
       try {
-        await authRequest('/reset', {
+        const res = await authRequest('/reset', {
           method: 'POST',
-          body: { currentPassword: currentPass, newUsername: newUser, newPassword: newPass }
+          body: { username: currentUsername, currentPassword: currentPass, newUsername: newUser, newPassword: newPass }
         });
         toast('Credentials updated', 'success');
-        showAdminLogin();
+        localStorage.setItem('bnf_username', res.username);
+        updateAuthUI();
+        Modal.close();
       } catch (err) {
         if (err.status === 401) {
           toast('Current password is incorrect', 'error');
+        } else if (err.status === 400) {
+          toast('Username is already taken', 'error');
         } else {
-          toast('Unable to update credentials', 'error');
+          // Fallback to local reset
+          if (DB.isFallback()) {
+            const localUsers = JSON.parse(localStorage.getItem('bnf_local_users') || '[]');
+            const idx = localUsers.findIndex(u => u.username === currentUsername);
+            if (idx !== -1 && localUsers[idx].password === currentPass) {
+              if (newUser !== currentUsername && localUsers.some(u => u.username === newUser)) {
+                return toast('Username already taken', 'error');
+              }
+              localUsers[idx].username = newUser;
+              localUsers[idx].password = newPass;
+              localStorage.setItem('bnf_local_users', JSON.stringify(localUsers));
+              localStorage.setItem('bnf_username', newUser);
+              toast('Credentials updated (Local Fallback)', 'success');
+              updateAuthUI();
+              Modal.close();
+            } else if (currentUsername === DEFAULT_ADMIN.username && currentPass === DEFAULT_ADMIN.password) {
+              const localUsers = JSON.parse(localStorage.getItem('bnf_local_users') || '[]');
+              if (newUser !== currentUsername && localUsers.some(u => u.username === newUser)) {
+                return toast('Username already taken', 'error');
+              }
+              localUsers.push({ username: newUser, password: newPass });
+              localStorage.setItem('bnf_local_users', JSON.stringify(localUsers));
+              localStorage.setItem('bnf_username', newUser);
+              toast('Credentials updated (Local Fallback)', 'success');
+              updateAuthUI();
+              Modal.close();
+            } else {
+              toast('Current password is incorrect', 'error');
+            }
+          } else {
+            toast('Unable to update credentials', 'error');
+          }
         }
       }
     };
   }, 50);
 }
 
-function showAdminLogin() {
-  document.getElementById('page-title').textContent = 'Admin Sign In';
-  Modal.open({
-    title: 'Admin Sign In',
-    body: `
+function showAuthModal(isSignup = false) {
+  const title = isSignup ? 'Create Account' : 'Sign In';
+  
+  let body = '';
+  if (isSignup) {
+    body = `
       <div class="form-group">
         <label>Username</label>
-        <input id="admin-user" placeholder="admin">
+        <input id="auth-username" placeholder="Choose a username (min 3 chars)" autocomplete="username">
       </div>
       <div class="form-group">
         <label>Password</label>
-        <input id="admin-pass" type="password" placeholder="••••••••">
+        <input id="auth-password" type="password" placeholder="••••••••" autocomplete="new-password">
       </div>
-      <div style="font-size:0.78rem;color:var(--text-muted);">
-        Default (first run): ${DEFAULT_ADMIN.username} / ${DEFAULT_ADMIN.password}
+      <div class="form-group">
+        <label>Confirm Password</label>
+        <input id="auth-confirm-password" type="password" placeholder="••••••••" autocomplete="new-password">
       </div>
-    `,
-    footer: `
-      <button class="btn btn-secondary" id="admin-reset-open">Reset</button>
-      <button class="btn btn-primary" id="admin-login-btn">Sign In</button>
-    `
+      <div style="font-size:0.85rem;color:var(--text-muted);margin-top:12px;text-align:center;">
+        Already have an account? <a href="#" id="toggle-auth-mode" style="color:var(--accent);text-decoration:none;font-weight:600;">Sign In</a>
+      </div>
+    `;
+  } else {
+    body = `
+      <div class="form-group">
+        <label>Username</label>
+        <input id="auth-username" placeholder="Enter username" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input id="auth-password" type="password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <div style="font-size:0.85rem;color:var(--text-muted);margin-top:12px;text-align:center;">
+        Don't have an account? <a href="#" id="toggle-auth-mode" style="color:var(--accent);text-decoration:none;font-weight:600;">Sign Up</a>
+      </div>
+    `;
+  }
+
+  const footer = `
+    <button class="btn btn-primary" id="auth-submit-btn" style="width: 100%; justify-content: center;">${isSignup ? 'Sign Up' : 'Sign In'}</button>
+  `;
+
+  Modal.open({
+    title: title,
+    body: body,
+    footer: footer
   });
 
   setTimeout(() => {
-    const loginBtn = document.getElementById('admin-login-btn');
-    const resetBtn = document.getElementById('admin-reset-open');
-    if (resetBtn) resetBtn.onclick = () => showResetCredentials();
-    if (!loginBtn) return;
+    const toggleLink = document.getElementById('toggle-auth-mode');
+    if (toggleLink) {
+      toggleLink.onclick = (e) => {
+        e.preventDefault();
+        showAuthModal(!isSignup);
+      };
+    }
 
-    const proceedLogin = () => {
+    const submitBtn = document.getElementById('auth-submit-btn');
+    if (!submitBtn) return;
+
+    const proceedLogin = (username) => {
+      localStorage.setItem('bnf_username', username);
       setAuthState(true);
       Modal.close();
-      toast('Welcome, Admin', 'success');
+      toast(`Welcome, ${username}`, 'success');
       navigate(currentPage || 'dashboard');
     };
 
-    loginBtn.onclick = async () => {
-      const user = document.getElementById('admin-user').value.trim();
-      const pass = document.getElementById('admin-pass').value.trim();
-      if (!user || !pass) return toast('Username and password required', 'error');
-      
-      try {
-        await authRequest('/login', { method: 'POST', body: { username: user, password: pass } });
-        proceedLogin();
-      } catch (err) {
-        // Fallback to local admin check if server is down or returns 401/error
-        if (user === DEFAULT_ADMIN.username && pass === DEFAULT_ADMIN.password) {
-          toast('Signed in (Local Fallback)', 'info');
-          proceedLogin();
-        } else {
-          toast(err.status === 401 ? 'Invalid credentials' : 'Login failed', 'error');
+    submitBtn.onclick = async () => {
+      const usernameInput = document.getElementById('auth-username');
+      const passwordInput = document.getElementById('auth-password');
+      const username = usernameInput ? usernameInput.value.trim() : '';
+      const password = passwordInput ? passwordInput.value : '';
+
+      if (!username || !password) {
+        return toast('Username and password required', 'error');
+      }
+
+      if (isSignup) {
+        const confirmInput = document.getElementById('auth-confirm-password');
+        const confirmPassword = confirmInput ? confirmInput.value : '';
+        if (password !== confirmPassword) {
+          return toast('Passwords do not match', 'error');
+        }
+        if (username.length < 3) {
+          return toast('Username must be at least 3 characters', 'error');
+        }
+
+        try {
+          await authRequest('/signup', {
+            method: 'POST',
+            body: { username, password }
+          });
+          toast('Account created successfully!', 'success');
+          showAuthModal(false);
+        } catch (err) {
+          if (DB.isFallback()) {
+            const localUsers = JSON.parse(localStorage.getItem('bnf_local_users') || '[]');
+            if (localUsers.some(u => u.username.toLowerCase() === username.toLowerCase()) || username.toLowerCase() === DEFAULT_ADMIN.username.toLowerCase()) {
+              return toast('Username already taken', 'error');
+            }
+            localUsers.push({ username, password });
+            localStorage.setItem('bnf_local_users', JSON.stringify(localUsers));
+            toast('Account created (Local Fallback)', 'success');
+            showAuthModal(false);
+          } else {
+            if (err.status === 400) {
+              toast('Username is already taken', 'error');
+            } else {
+              toast('Signup failed', 'error');
+            }
+          }
+        }
+      } else {
+        try {
+          const res = await authRequest('/login', {
+            method: 'POST',
+            body: { username, password }
+          });
+          proceedLogin(res.username || username);
+        } catch (err) {
+          const localUsers = JSON.parse(localStorage.getItem('bnf_local_users') || '[]');
+          const matchesLocal = localUsers.find(u => u.username === username && u.password === password);
+          if (matchesLocal || (username === DEFAULT_ADMIN.username && password === DEFAULT_ADMIN.password)) {
+            toast('Signed in (Local Fallback)', 'info');
+            proceedLogin(username);
+          } else {
+            toast(err.status === 401 ? 'Invalid credentials' : 'Login failed', 'error');
+          }
         }
       }
     };
@@ -200,7 +343,7 @@ function showAdminLogin() {
 function navigate(page) {
   if (!PAGES[page]) return;
   if (!isAdminAuthed) {
-    showAdminLogin();
+    showAuthModal();
     return;
   }
   currentPage = page;
@@ -368,7 +511,7 @@ function searchRecords(query) {
 }
 
 function openCommandCenter(initialQuery = '') {
-  if (!isAdminAuthed) return showAdminLogin();
+  if (!isAdminAuthed) return showAuthModal();
   const snapshot = getOperationalSnapshot();
   Modal.open({
     title: 'Command Center',
@@ -575,7 +718,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (isAdminAuthed) {
         navigate('dashboard');
       } else {
-        showAdminLogin();
+        showAuthModal();
       }
     });
 });
