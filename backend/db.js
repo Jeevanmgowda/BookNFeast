@@ -1,18 +1,20 @@
-const mysql = require('mysql2/promise');
+const { MongoClient } = require('mongodb');
 const path = require('path');
 const dotenv = require('dotenv');
 
 dotenv.config({ path: path.join(__dirname, '.env') });
 
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  port: Number(process.env.DB_PORT || 3306),
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'booknfeast',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
-});
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/booknfeast';
 
-module.exports = { pool };
+let cached = { client: null, db: null };
+
+async function getDb() {
+  if (cached.db) return cached.db;
+
+  const client = await MongoClient.connect(MONGODB_URI);
+  const dbName = new URL(MONGODB_URI).pathname.slice(1) || 'booknfeast';
+  cached = { client, db: client.db(dbName) };
+  return cached.db;
+}
+
+module.exports = { getDb };

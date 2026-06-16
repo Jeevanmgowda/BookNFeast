@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
-const { pool } = require('./db');
+const { getDb } = require('./db');
 const { buildSeedRecords, uid } = require('./seed-data');
 
 const app = express();
@@ -20,103 +20,16 @@ const COLLECTIONS = [
   'activity'
 ];
 
-const DEFINITIONS = {
-  rooms: {
-    table: 'rooms',
-    orderBy: 'room_number ASC',
-    fields: {
-      number: 'room_number',
-      type: 'room_type',
-      floor: 'floor',
-      capacity: 'capacity',
-      pricePerNight: 'price_per_night',
-      status: 'status',
-      amenities: 'amenities'
-    },
-    numericFields: ['floor', 'capacity', 'pricePerNight']
-  },
-  guests: {
-    table: 'guests',
-    orderBy: 'name ASC',
-    fields: {
-      name: 'name',
-      email: 'email',
-      phone: 'phone',
-      idType: 'id_type',
-      idNumber: 'id_number'
-    }
-  },
-  bookings: {
-    table: 'bookings',
-    orderBy: 'check_in DESC, created_at DESC',
-    fields: {
-      guestId: 'guest_id',
-      guestName: 'guest_name',
-      roomId: 'room_id',
-      roomNumber: 'room_number',
-      checkIn: 'check_in',
-      checkOut: 'check_out',
-      nights: 'nights',
-      amount: 'amount',
-      status: 'status',
-      adults: 'adults',
-      children: 'children',
-      notes: 'notes'
-    },
-    dateFields: ['checkIn', 'checkOut'],
-    numericFields: ['nights', 'amount', 'adults', 'children']
-  },
-  menuItems: {
-    table: 'menu_items',
-    orderBy: 'category ASC, name ASC',
-    fields: {
-      name: 'name',
-      category: 'category',
-      price: 'price',
-      available: 'available',
-      description: 'description'
-    },
-    booleanFields: ['available'],
-    numericFields: ['price']
-  },
-  tables: {
-    table: 'restaurant_tables',
-    orderBy: 'table_number ASC',
-    fields: {
-      number: 'table_number',
-      capacity: 'capacity',
-      status: 'status',
-      section: 'section'
-    },
-    numericFields: ['number', 'capacity']
-  },
-  staff: {
-    table: 'staff',
-    orderBy: 'name ASC',
-    fields: {
-      name: 'name',
-      role: 'role',
-      department: 'department',
-      shift: 'shift',
-      phone: 'phone',
-      salary: 'salary',
-      joinDate: 'join_date',
-      status: 'status'
-    },
-    dateFields: ['joinDate'],
-    numericFields: ['salary']
-  },
-  activity: {
-    table: 'activity',
-    orderBy: 'activity_time DESC, created_at DESC',
-    fields: {
-      icon: 'icon',
-      message: 'message',
-      type: 'type',
-      time: 'activity_time'
-    },
-    datetimeFields: ['time']
-  }
+/* ---------- Sort orders for each collection ---------- */
+const SORT_ORDERS = {
+  rooms: { number: 1 },
+  guests: { name: 1 },
+  bookings: { checkIn: -1, createdAt: -1 },
+  menuItems: { category: 1, name: 1 },
+  tables: { number: 1 },
+  orders: { createdAt: -1 },
+  staff: { name: 1 },
+  activity: { time: -1, createdAt: -1 }
 };
 
 app.use(cors());
@@ -127,9 +40,10 @@ const projectRoot = path.join(__dirname, '..');
 app.use(express.static(path.join(projectRoot, 'frontend')));
 app.use('/assets', express.static(path.join(projectRoot, 'assets')));
 
-function toSqlDatetime(value) {
-  const d = value instanceof Date ? value : new Date(value);
-  return d.toISOString().slice(0, 19).replace('T', ' ');
+/* ---------- Helpers ---------- */
+
+function isValidCollection(col) {
+  return COLLECTIONS.includes(col);
 }
 
 function toIso(value) {
@@ -138,313 +52,186 @@ function toIso(value) {
   return d.toISOString();
 }
 
-function toDateOnly(value) {
-  if (!value) return null;
-  if (typeof value === 'string') return value.slice(0, 10);
-  return value.toISOString().slice(0, 10);
+function stripMongoId(doc) {
+  if (!doc) return null;
+  const { _id, ...rest } = doc;
+  return rest;
 }
 
-function toSqlDate(value) {
-  return value ? toDateOnly(value) : null;
+function stripMongoIds(docs) {
+  return docs.map(stripMongoId);
 }
 
-function stripMeta(record) {
-  const { id, createdAt, updatedAt, items, ...data } = record || {};
-  return data;
-}
+/* ---------- Activity logging (replaces MySQL triggers) ---------- */
 
-function isValidCollection(col) {
-  return COLLECTIONS.includes(col);
-}
-
-function isDateField(def, key) {
-  return (def.dateFields || []).includes(key);
-}
-
-function isDatetimeField(def, key) {
-  return (def.datetimeFields || []).includes(key);
-}
-
-function isBooleanField(def, key) {
-  return (def.booleanFields || []).includes(key);
-}
-
-function isNumericField(def, key) {
-  return (def.numericFields || []).includes(key);
-}
-
-function sqlValue(def, key, value) {
-  if (value === undefined) return undefined;
-  if (value === '') return null;
-  if (isDateField(def, key)) return toSqlDate(value);
-  if (isDatetimeField(def, key)) return value ? toSqlDatetime(value) : null;
-  if (isBooleanField(def, key)) return value ? 1 : 0;
-  return value;
-}
-
-function readValue(def, key, value) {
-  if (value === undefined) return undefined;
-  if (value === null) return null;
-  if (isDateField(def, key)) return toDateOnly(value);
-  if (isDatetimeField(def, key)) return toIso(value);
-  if (isBooleanField(def, key)) return Boolean(value);
-  if (isNumericField(def, key)) return Number(value);
-  return value;
-}
-
-function rowToRecord(def, row) {
+async function logActivity(db, icon, message, type = 'blue') {
   const record = {
-    id: row.id,
-    createdAt: toIso(row.created_at),
-    updatedAt: toIso(row.updated_at)
+    id: uid(),
+    icon,
+    message,
+    type,
+    time: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+    updatedAt: null
   };
-  Object.entries(def.fields).forEach(([key, column]) => {
-    record[key] = readValue(def, key, row[column]);
-  });
+  await db.collection('activity').insertOne(record);
   return record;
 }
 
-function getDefinition(collection) {
-  return DEFINITIONS[collection] || null;
+/* ---------- Booking side-effects (replaces MySQL triggers) ---------- */
+
+async function onBookingInsert(db, booking) {
+  await logActivity(db, 'BK', `New booking: ${booking.guestName} - Room ${booking.roomNumber}`, 'green');
 }
 
-async function ensureAdminUser() {
-  const [rows] = await pool.query('SELECT COUNT(*) AS count FROM admin_users');
-  const count = rows[0]?.count || 0;
+async function onBookingUpdate(db, oldBooking, newBooking) {
+  if (newBooking.status !== oldBooking.status) {
+    // Update room status
+    if (newBooking.roomId && ['checked-in', 'checked-out', 'cancelled'].includes(newBooking.status)) {
+      const roomStatus = newBooking.status === 'checked-in' ? 'occupied' : 'available';
+      await db.collection('rooms').updateOne(
+        { id: newBooking.roomId },
+        { $set: { status: roomStatus, updatedAt: new Date().toISOString() } }
+      );
+    }
+
+    // Log activity
+    const actType = newBooking.status === 'cancelled' ? 'red'
+      : newBooking.status === 'checked-out' ? 'gold' : 'blue';
+    await logActivity(db, 'BK', `Booking ${newBooking.status}: ${newBooking.guestName} - Room ${newBooking.roomNumber}`, actType);
+  }
+}
+
+async function onBookingDelete(db, booking) {
+  if (booking.roomId && ['confirmed', 'checked-in'].includes(booking.status)) {
+    await db.collection('rooms').updateOne(
+      { id: booking.roomId },
+      { $set: { status: 'available', updatedAt: new Date().toISOString() } }
+    );
+  }
+  await logActivity(db, 'BK', `Booking deleted: ${booking.guestName} - Room ${booking.roomNumber}`, 'red');
+}
+
+/* ---------- Order side-effects (replaces MySQL triggers) ---------- */
+
+async function onOrderInsert(db, order) {
+  if (order.tableId && order.status === 'active') {
+    await db.collection('tables').updateOne(
+      { id: order.tableId },
+      { $set: { status: 'occupied', updatedAt: new Date().toISOString() } }
+    );
+  }
+  await logActivity(db, 'OD', `Order placed for Table ${order.tableNumber || 'N/A'}`, 'gold');
+}
+
+async function onOrderUpdate(db, oldOrder, newOrder) {
+  if (newOrder.status !== oldOrder.status) {
+    if (newOrder.tableId && ['active', 'completed', 'cancelled'].includes(newOrder.status)) {
+      const tableStatus = newOrder.status === 'active' ? 'occupied' : 'available';
+      await db.collection('tables').updateOne(
+        { id: newOrder.tableId },
+        { $set: { status: tableStatus, updatedAt: new Date().toISOString() } }
+      );
+    }
+
+    const actType = newOrder.status === 'cancelled' ? 'red'
+      : newOrder.status === 'completed' ? 'green' : 'gold';
+    await logActivity(db, 'OD', `Order ${newOrder.status} for Table ${newOrder.tableNumber || 'N/A'}`, actType);
+  }
+}
+
+async function onOrderDelete(db, order) {
+  if (order.tableId && order.status === 'active') {
+    await db.collection('tables').updateOne(
+      { id: order.tableId },
+      { $set: { status: 'available', updatedAt: new Date().toISOString() } }
+    );
+  }
+  await logActivity(db, 'OD', `Order deleted for Table ${order.tableNumber || 'N/A'}`, 'red');
+}
+
+/* ---------- Admin bootstrap ---------- */
+
+async function ensureAdminUser(db) {
+  const count = await db.collection('admin_users').countDocuments();
   if (count > 0) return;
 
   const hash = await bcrypt.hash(DEFAULT_ADMIN.password, 10);
-  await pool.query(
-    'INSERT INTO admin_users (username, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?)',
-    [DEFAULT_ADMIN.username, hash, toSqlDatetime(new Date()), null]
-  );
-}
-
-async function listGeneric(collection) {
-  const def = getDefinition(collection);
-  const [rows] = await pool.query(`SELECT * FROM ${def.table} ORDER BY ${def.orderBy}`);
-  return rows.map(row => rowToRecord(def, row));
-}
-
-async function getGeneric(collection, id) {
-  const def = getDefinition(collection);
-  const [rows] = await pool.query(`SELECT * FROM ${def.table} WHERE id = ? LIMIT 1`, [id]);
-  return rows.length ? rowToRecord(def, rows[0]) : null;
-}
-
-async function insertGeneric(collection, input) {
-  const def = getDefinition(collection);
-  const id = input.id || uid();
-  const createdAt = input.createdAt ? toSqlDatetime(input.createdAt) : toSqlDatetime(new Date());
-  const updatedAt = input.updatedAt ? toSqlDatetime(input.updatedAt) : null;
-  const columns = ['id'];
-  const values = [id];
-
-  Object.entries(def.fields).forEach(([key, column]) => {
-    const value = sqlValue(def, key, input[key]);
-    if (value !== undefined) {
-      columns.push(column);
-      values.push(value);
-    }
+  await db.collection('admin_users').insertOne({
+    username: DEFAULT_ADMIN.username,
+    password_hash: hash,
+    created_at: new Date().toISOString(),
+    updated_at: null
   });
-
-  columns.push('created_at', 'updated_at');
-  values.push(createdAt, updatedAt);
-
-  const placeholders = columns.map(() => '?').join(', ');
-  await pool.query(
-    `INSERT INTO ${def.table} (${columns.join(', ')}) VALUES (${placeholders})`,
-    values
-  );
-
-  return getGeneric(collection, id);
 }
 
-async function updateGeneric(collection, id, patch) {
-  const def = getDefinition(collection);
-  const assignments = [];
-  const values = [];
+/* ---------- Generic CRUD ---------- */
 
-  Object.entries(def.fields).forEach(([key, column]) => {
-    if (Object.prototype.hasOwnProperty.call(patch, key)) {
-      assignments.push(`${column} = ?`);
-      values.push(sqlValue(def, key, patch[key]));
-    }
-  });
-
-  if (!assignments.length) return getGeneric(collection, id);
-
-  const updatedAt = toSqlDatetime(new Date());
-  assignments.push('updated_at = ?');
-  values.push(updatedAt, id);
-
-  const [result] = await pool.query(
-    `UPDATE ${def.table} SET ${assignments.join(', ')} WHERE id = ?`,
-    values
-  );
-  if (!result.affectedRows) return null;
-  return getGeneric(collection, id);
+async function listCollection(db, collection) {
+  const sort = SORT_ORDERS[collection] || {};
+  const docs = await db.collection(collection).find({}).sort(sort).toArray();
+  return stripMongoIds(docs);
 }
 
-async function deleteGeneric(collection, id) {
-  const def = getDefinition(collection);
-  const [result] = await pool.query(`DELETE FROM ${def.table} WHERE id = ?`, [id]);
-  return result.affectedRows > 0;
+async function getRecord(db, collection, id) {
+  const doc = await db.collection(collection).findOne({ id });
+  return stripMongoId(doc);
 }
 
-async function orderItems(orderIds) {
-  if (!orderIds.length) return new Map();
-  const placeholders = orderIds.map(() => '?').join(', ');
-  const [rows] = await pool.query(
-    `SELECT order_id, menu_id, name, price, qty FROM order_items WHERE order_id IN (${placeholders}) ORDER BY id ASC`,
-    orderIds
-  );
-  const byOrder = new Map();
-  rows.forEach(row => {
-    if (!byOrder.has(row.order_id)) byOrder.set(row.order_id, []);
-    byOrder.get(row.order_id).push({
-      menuId: row.menu_id,
-      name: row.name,
-      price: Number(row.price),
-      qty: Number(row.qty)
-    });
-  });
-  return byOrder;
-}
-
-function rowToOrder(row, items = []) {
-  return {
-    id: row.id,
-    tableId: row.table_id,
-    tableNumber: row.table_number === null ? null : Number(row.table_number),
-    guestName: row.guest_name,
-    items,
-    subtotal: Number(row.subtotal),
-    tax: Number(row.tax),
-    total: Number(row.total),
-    status: row.status,
-    waiter: row.waiter,
-    createdAt: toIso(row.created_at),
-    updatedAt: toIso(row.updated_at)
+async function insertRecord(db, collection, input) {
+  const now = new Date().toISOString();
+  const record = {
+    ...input,
+    id: input.id || uid(),
+    createdAt: input.createdAt || now,
+    updatedAt: input.updatedAt || null
   };
+  await db.collection(collection).insertOne(record);
+
+  // Trigger side-effects
+  if (collection === 'bookings') await onBookingInsert(db, record);
+  if (collection === 'orders') await onOrderInsert(db, record);
+
+  return stripMongoId(record);
 }
 
-async function listOrders() {
-  const [rows] = await pool.query('SELECT * FROM orders ORDER BY created_at DESC');
-  const items = await orderItems(rows.map(row => row.id));
-  return rows.map(row => rowToOrder(row, items.get(row.id) || []));
-}
+async function updateRecord(db, collection, id, patch) {
+  // Get old record for side-effect comparison
+  const oldDoc = await db.collection(collection).findOne({ id });
+  if (!oldDoc) return null;
 
-async function getOrder(id) {
-  const [rows] = await pool.query('SELECT * FROM orders WHERE id = ? LIMIT 1', [id]);
-  if (!rows.length) return null;
-  const items = await orderItems([id]);
-  return rowToOrder(rows[0], items.get(id) || []);
-}
+  const updates = { ...patch, updatedAt: new Date().toISOString() };
+  // Remove id and createdAt from patch to avoid overwriting them
+  delete updates.id;
+  delete updates.createdAt;
 
-async function replaceOrderItems(orderId, items = []) {
-  await pool.query('DELETE FROM order_items WHERE order_id = ?', [orderId]);
-  if (!items.length) return;
-  const values = items.map(item => [
-    orderId,
-    item.menuId || null,
-    item.name || '',
-    item.price || 0,
-    item.qty || 1
-  ]);
-  await pool.query(
-    'INSERT INTO order_items (order_id, menu_id, name, price, qty) VALUES ?',
-    [values]
+  await db.collection(collection).updateOne(
+    { id },
+    { $set: updates }
   );
+
+  const newDoc = await db.collection(collection).findOne({ id });
+
+  // Trigger side-effects
+  if (collection === 'bookings') await onBookingUpdate(db, oldDoc, newDoc);
+  if (collection === 'orders') await onOrderUpdate(db, oldDoc, newDoc);
+
+  return stripMongoId(newDoc);
 }
 
-async function insertOrder(input) {
-  const id = input.id || uid();
-  const createdAt = input.createdAt ? toSqlDatetime(input.createdAt) : toSqlDatetime(new Date());
-  const updatedAt = input.updatedAt ? toSqlDatetime(input.updatedAt) : null;
-  await pool.query(
-    `INSERT INTO orders
-      (id, table_id, table_number, guest_name, subtotal, tax, total, status, waiter, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      id,
-      input.tableId || null,
-      input.tableNumber ?? null,
-      input.guestName || null,
-      input.subtotal || 0,
-      input.tax || 0,
-      input.total || 0,
-      input.status || 'active',
-      input.waiter || null,
-      createdAt,
-      updatedAt
-    ]
-  );
-  await replaceOrderItems(id, input.items || []);
-  return getOrder(id);
+async function deleteRecord(db, collection, id) {
+  const doc = await db.collection(collection).findOne({ id });
+  if (!doc) return false;
+
+  // Trigger side-effects before deletion
+  if (collection === 'bookings') await onBookingDelete(db, doc);
+  if (collection === 'orders') await onOrderDelete(db, doc);
+
+  const result = await db.collection(collection).deleteOne({ id });
+  return result.deletedCount > 0;
 }
 
-async function updateOrder(id, input) {
-  const fields = {
-    tableId: 'table_id',
-    tableNumber: 'table_number',
-    guestName: 'guest_name',
-    subtotal: 'subtotal',
-    tax: 'tax',
-    total: 'total',
-    status: 'status',
-    waiter: 'waiter'
-  };
-  const assignments = [];
-  const values = [];
-  Object.entries(fields).forEach(([key, column]) => {
-    if (Object.prototype.hasOwnProperty.call(input, key)) {
-      assignments.push(`${column} = ?`);
-      values.push(input[key] === undefined ? null : input[key]);
-    }
-  });
-
-  if (assignments.length) {
-    assignments.push('updated_at = ?');
-    values.push(toSqlDatetime(new Date()), id);
-    const [result] = await pool.query(
-      `UPDATE orders SET ${assignments.join(', ')} WHERE id = ?`,
-      values
-    );
-    if (!result.affectedRows) return null;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(input, 'items')) {
-    await replaceOrderItems(id, input.items || []);
-  }
-
-  return getOrder(id);
-}
-
-async function deleteOrder(id) {
-  const [result] = await pool.query('DELETE FROM orders WHERE id = ?', [id]);
-  return result.affectedRows > 0;
-}
-
-async function listCollection(collection) {
-  return collection === 'orders' ? listOrders() : listGeneric(collection);
-}
-
-async function getCollectionRecord(collection, id) {
-  return collection === 'orders' ? getOrder(id) : getGeneric(collection, id);
-}
-
-async function insertCollectionRecord(collection, input) {
-  return collection === 'orders' ? insertOrder(input) : insertGeneric(collection, input);
-}
-
-async function updateCollectionRecord(collection, id, input) {
-  return collection === 'orders' ? updateOrder(id, input) : updateGeneric(collection, id, input);
-}
-
-async function deleteCollectionRecord(collection, id) {
-  return collection === 'orders' ? deleteOrder(id) : deleteGeneric(collection, id);
-}
+/* ---------- Routes ---------- */
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
@@ -452,9 +239,10 @@ app.get('/api/health', (_req, res) => {
 
 app.get('/api/auth/info', async (_req, res) => {
   try {
-    const [rows] = await pool.query('SELECT username FROM admin_users LIMIT 1');
-    if (!rows.length) return res.json({ username: DEFAULT_ADMIN.username });
-    res.json({ username: rows[0].username });
+    const db = await getDb();
+    const admin = await db.collection('admin_users').findOne({}, { projection: { username: 1 } });
+    if (!admin) return res.json({ username: DEFAULT_ADMIN.username });
+    res.json({ username: admin.username });
   } catch (err) {
     console.error('Auth info failed', err);
     res.status(500).json({ error: 'auth_info_failed' });
@@ -465,14 +253,12 @@ app.post('/api/auth/login', async (req, res) => {
   const { username, password } = req.body || {};
   if (!username || !password) return res.status(400).json({ error: 'missing_credentials' });
   try {
-    const [rows] = await pool.query(
-      'SELECT id, username, password_hash FROM admin_users WHERE username = ? LIMIT 1',
-      [username]
-    );
-    if (!rows.length) return res.status(401).json({ error: 'invalid_credentials' });
-    const match = await bcrypt.compare(password, rows[0].password_hash);
+    const db = await getDb();
+    const admin = await db.collection('admin_users').findOne({ username });
+    if (!admin) return res.status(401).json({ error: 'invalid_credentials' });
+    const match = await bcrypt.compare(password, admin.password_hash);
     if (!match) return res.status(401).json({ error: 'invalid_credentials' });
-    res.json({ ok: true, username: rows[0].username });
+    res.json({ ok: true, username: admin.username });
   } catch (err) {
     console.error('Login failed', err);
     res.status(500).json({ error: 'login_failed' });
@@ -485,16 +271,17 @@ app.post('/api/auth/reset', async (req, res) => {
     return res.status(400).json({ error: 'missing_fields' });
   }
   try {
-    const [rows] = await pool.query('SELECT id, password_hash FROM admin_users LIMIT 1');
-    if (!rows.length) return res.status(404).json({ error: 'admin_missing' });
+    const db = await getDb();
+    const admin = await db.collection('admin_users').findOne({});
+    if (!admin) return res.status(404).json({ error: 'admin_missing' });
 
-    const ok = await bcrypt.compare(currentPassword, rows[0].password_hash);
+    const ok = await bcrypt.compare(currentPassword, admin.password_hash);
     if (!ok) return res.status(401).json({ error: 'invalid_credentials' });
 
     const hash = await bcrypt.hash(newPassword, 10);
-    await pool.query(
-      'UPDATE admin_users SET username = ?, password_hash = ?, updated_at = ? WHERE id = ?',
-      [newUsername, hash, toSqlDatetime(new Date()), rows[0].id]
+    await db.collection('admin_users').updateOne(
+      { _id: admin._id },
+      { $set: { username: newUsername, password_hash: hash, updated_at: new Date().toISOString() } }
     );
 
     res.json({ ok: true, username: newUsername });
@@ -506,9 +293,10 @@ app.post('/api/auth/reset', async (req, res) => {
 
 app.get('/api/bootstrap', async (_req, res) => {
   try {
+    const db = await getDb();
     const payload = {};
     for (const collection of COLLECTIONS) {
-      payload[collection] = await listCollection(collection);
+      payload[collection] = await listCollection(db, collection);
     }
     res.json(payload);
   } catch (err) {
@@ -519,13 +307,13 @@ app.get('/api/bootstrap', async (_req, res) => {
 
 app.post('/api/seed', async (_req, res) => {
   try {
-    const [rows] = await pool.query('SELECT COUNT(*) AS count FROM rooms');
-    const count = rows[0]?.count || 0;
+    const db = await getDb();
+    const count = await db.collection('rooms').countDocuments();
     if (count > 0) return res.json({ seeded: false });
 
     const seedRecords = buildSeedRecords();
     for (const { collection, record } of seedRecords) {
-      await insertCollectionRecord(collection, record);
+      await insertRecord(db, collection, record);
     }
 
     res.json({ seeded: true, count: seedRecords.length });
@@ -539,7 +327,8 @@ app.get('/api/:collection', async (req, res) => {
   const { collection } = req.params;
   if (!isValidCollection(collection)) return res.status(400).json({ error: 'invalid_collection' });
   try {
-    res.json(await listCollection(collection));
+    const db = await getDb();
+    res.json(await listCollection(db, collection));
   } catch (err) {
     console.error('List failed', err);
     res.status(500).json({ error: 'list_failed' });
@@ -550,7 +339,8 @@ app.get('/api/:collection/:id', async (req, res) => {
   const { collection, id } = req.params;
   if (!isValidCollection(collection)) return res.status(400).json({ error: 'invalid_collection' });
   try {
-    const record = await getCollectionRecord(collection, id);
+    const db = await getDb();
+    const record = await getRecord(db, collection, id);
     if (!record) return res.status(404).json({ error: 'not_found' });
     res.json(record);
   } catch (err) {
@@ -563,7 +353,8 @@ app.post('/api/:collection', async (req, res) => {
   const { collection } = req.params;
   if (!isValidCollection(collection)) return res.status(400).json({ error: 'invalid_collection' });
   try {
-    const record = await insertCollectionRecord(collection, req.body || {});
+    const db = await getDb();
+    const record = await insertRecord(db, collection, req.body || {});
     res.status(201).json(record);
   } catch (err) {
     console.error('Create failed', err);
@@ -575,7 +366,8 @@ app.put('/api/:collection/:id', async (req, res) => {
   const { collection, id } = req.params;
   if (!isValidCollection(collection)) return res.status(400).json({ error: 'invalid_collection' });
   try {
-    const record = await updateCollectionRecord(collection, id, req.body || {});
+    const db = await getDb();
+    const record = await updateRecord(db, collection, id, req.body || {});
     if (!record) return res.status(404).json({ error: 'not_found' });
     res.json(record);
   } catch (err) {
@@ -588,7 +380,8 @@ app.delete('/api/:collection/:id', async (req, res) => {
   const { collection, id } = req.params;
   if (!isValidCollection(collection)) return res.status(400).json({ error: 'invalid_collection' });
   try {
-    await deleteCollectionRecord(collection, id);
+    const db = await getDb();
+    await deleteRecord(db, collection, id);
     res.status(204).end();
   } catch (err) {
     console.error('Delete failed', err);
@@ -596,8 +389,11 @@ app.delete('/api/:collection/:id', async (req, res) => {
   }
 });
 
+/* ---------- Server startup ---------- */
+
 async function startServer() {
-  await ensureAdminUser();
+  const db = await getDb();
+  await ensureAdminUser(db);
   const server = app.listen(PORT, () => {
     console.log(`BookNFeast API running on http://localhost:${PORT}`);
   });
@@ -611,24 +407,19 @@ async function startServer() {
   });
 }
 
-function printStartupError(err) {
-  if (err.code === 'ER_ACCESS_DENIED_ERROR') {
-    console.error('\nDatabase login failed.');
-    console.error(`MySQL rejected DB_USER="${process.env.DB_USER || 'root'}" on ${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 3306}.`);
-    console.error('Update backend/.env with a real MySQL user/password that can access DB_NAME, then restart nodemon.');
-    console.error('Note: the default app login is admin/admin; that is not automatically a MySQL account.\n');
-    return;
-  }
-
-  if (err.code === 'ER_BAD_DB_ERROR') {
-    console.error(`\nDatabase "${process.env.DB_NAME || 'booknfeast'}" does not exist. Run "npm run db:init" from backend, then restart the server.\n`);
-    return;
-  }
-
-  console.error('Server failed to start', err);
+// For Vercel: export the app as a serverless function
+// For local dev: start the server with app.listen()
+if (require.main === module) {
+  startServer().catch(err => {
+    if (err.name === 'MongoServerSelectionError' || err.name === 'MongoParseError') {
+      console.error('\nMongoDB connection failed.');
+      console.error(`Could not connect to: ${process.env.MONGODB_URI ? '(MONGODB_URI set)' : '(MONGODB_URI not set)'}`);
+      console.error('Update backend/.env with a valid MONGODB_URI, then restart.\n');
+    } else {
+      console.error('Server failed to start', err);
+    }
+    process.exit(1);
+  });
 }
 
-startServer().catch(err => {
-  printStartupError(err);
-  process.exit(1);
-});
+module.exports = app;

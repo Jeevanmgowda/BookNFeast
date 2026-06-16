@@ -9,13 +9,5 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 20
-      - key: DB_HOST
+      - key: MONGODB_URI
         sync: false
-      - key: DB_PORT
-        value: 3306
-      - key: DB_USER
-        sync: false
-      - key: DB_PASSWORD
-        sync: false
-      - key: DB_NAME
-        value: booknfeast

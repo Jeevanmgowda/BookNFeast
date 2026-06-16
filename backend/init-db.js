@@ -1,61 +1,76 @@
-const fs = require('fs/promises');
-const path = require('path');
-const mysql = require('mysql2/promise');
-const dotenv = require('dotenv');
-
-dotenv.config({ path: path.join(__dirname, '.env') });
+const { getDb } = require('./db');
 
 async function main() {
-  const connection = await mysql.createConnection({
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT || 3306),
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    multipleStatements: true
-  });
+  const db = await getDb();
 
-  try {
-    const schemaPath = path.join(__dirname, '..', 'database', 'schema.sql');
-    const schema = await fs.readFile(schemaPath, 'utf8');
-    await connection.query(schema);
+  console.log('Creating collections and indexes...');
 
-    const constraintsPath = path.join(__dirname, '..', 'database', 'triggers.sql');
-    const constraints = await fs.readFile(constraintsPath, 'utf8');
-    await runConstraintFile(connection, constraints);
+  // admin_users
+  await ensureCollection(db, 'admin_users');
+  await db.collection('admin_users').createIndex({ username: 1 }, { unique: true });
 
-    console.log('BookNFeast database schema and constraints initialized.');
-  } finally {
-    await connection.end();
-  }
+  // rooms
+  await ensureCollection(db, 'rooms');
+  await db.collection('rooms').createIndex({ number: 1 }, { unique: true });
+  await db.collection('rooms').createIndex({ status: 1 });
+  await db.collection('rooms').createIndex({ type: 1 });
+
+  // guests
+  await ensureCollection(db, 'guests');
+  await db.collection('guests').createIndex({ name: 1 });
+  await db.collection('guests').createIndex({ phone: 1 });
+
+  // bookings
+  await ensureCollection(db, 'bookings');
+  await db.collection('bookings').createIndex({ checkIn: 1, checkOut: 1 });
+  await db.collection('bookings').createIndex({ status: 1 });
+  await db.collection('bookings').createIndex({ guestId: 1 });
+  await db.collection('bookings').createIndex({ roomId: 1 });
+
+  // menuItems
+  await ensureCollection(db, 'menuItems');
+  await db.collection('menuItems').createIndex({ name: 1 }, { unique: true });
+  await db.collection('menuItems').createIndex({ category: 1 });
+  await db.collection('menuItems').createIndex({ available: 1 });
+
+  // tables
+  await ensureCollection(db, 'tables');
+  await db.collection('tables').createIndex({ number: 1 }, { unique: true });
+  await db.collection('tables').createIndex({ status: 1 });
+  await db.collection('tables').createIndex({ section: 1 });
+
+  // orders
+  await ensureCollection(db, 'orders');
+  await db.collection('orders').createIndex({ status: 1 });
+  await db.collection('orders').createIndex({ tableId: 1 });
+  await db.collection('orders').createIndex({ createdAt: -1 });
+
+  // staff
+  await ensureCollection(db, 'staff');
+  await db.collection('staff').createIndex({ department: 1 });
+  await db.collection('staff').createIndex({ role: 1 });
+  await db.collection('staff').createIndex({ name: 1 });
+
+  // activity
+  await ensureCollection(db, 'activity');
+  await db.collection('activity').createIndex({ time: -1 });
+  await db.collection('activity').createIndex({ createdAt: -1 });
+
+  console.log('BookNFeast MongoDB database initialized successfully.');
+  process.exit(0);
 }
 
-async function runConstraintFile(connection, sql) {
-  const statements = sql
-    .split(';')
-    .map(statement => statement.trim())
-    .filter(Boolean);
-
-  for (const statement of statements) {
-    try {
-      await connection.query(statement);
-    } catch (err) {
-      if (isDuplicateConstraintError(err)) {
-        continue;
-      }
-
-      throw err;
-    }
+async function ensureCollection(db, name) {
+  const collections = await db.listCollections({ name }).toArray();
+  if (collections.length === 0) {
+    await db.createCollection(name);
+    console.log(`  Created collection: ${name}`);
+  } else {
+    console.log(`  Collection exists: ${name}`);
   }
-}
-
-function isDuplicateConstraintError(err) {
-  return err.code === 'ER_CHECK_CONSTRAINT_DUP_NAME'
-    || err.code === 'ER_DUP_KEYNAME'
-    || err.errno === 3822
-    || err.errno === 1061;
 }
 
 main().catch(err => {
-  console.error('Database initialization failed:', err.code || err.name || 'ERROR', err.message || '');
+  console.error('Database initialization failed:', err.message || err);
   process.exit(1);
 });
